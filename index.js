@@ -4,6 +4,8 @@ const PORT = 8080;
 const bodyParser = require('body-parser');
 
 const connection = require('./database/database');
+const Ask = require('./database/models/Ask');
+const Answer = require('./database/models/Answer');
 
 connection
   .authenticate()
@@ -16,7 +18,12 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 app.get('/', (req, res) => {
-  res.render('index');
+  Ask.findAll({
+    raw: true,
+    order: [['id', 'DESC']],
+  }).then((asks) => {
+    res.render('index', { asks });
+  });
 });
 
 app.get('/ask', (req, res) => {
@@ -25,7 +32,45 @@ app.get('/ask', (req, res) => {
 
 app.post('/saveask', (req, res) => {
   const { title, description } = req.body;
-  res.send(`Tilte: ${title}, description: ${description}`);
+
+  Ask.create({
+    title,
+    description,
+  })
+    .then(() => {
+      res.redirect('/');
+    })
+    .catch((err) => {});
+});
+
+app.get('/question/:id', (req, res) => {
+  const { id } = req.params;
+
+  Ask.findOne({
+    where: { id },
+  }).then((ask) => {
+    if (ask != undefined) {
+      Answer.findAll({
+        where: { ask_id: id },
+        order: [['id', 'DESC']],
+      }).then((answers) => {
+        res.render('question', { ask, answers });
+      });
+    } else {
+      res.redirect('/');
+    }
+  });
+});
+
+app.post('/answer', (req, res) => {
+  const { body, ask_id } = req.body;
+
+  Answer.create({
+    body,
+    ask_id,
+  }).then(() => {
+    res.redirect(`/question/${ask_id}`);
+  });
 });
 
 app.listen(PORT, () =>
